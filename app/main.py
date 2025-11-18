@@ -4,6 +4,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import text
 from typing import List, Optional
 import json
+import logging
 
 from app.database import get_db, init_db
 from app.models import Document
@@ -18,6 +19,10 @@ from app.schemas import (
 )
 from app.services import get_embedding_service, EmbeddingService
 from app.document_parser import DocumentParser, TextChunker
+
+# Configure logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 app = FastAPI(
     title="RAG Pipeline API",
@@ -130,17 +135,37 @@ async def upload_document(
     Returns:
         FileUploadResponse with upload status and chunk information
     """
+    MAX_FILE_SIZE = 10 * 1024 * 1024  # 10 MB limit
+    MAX_CHUNKS = 100  # Limit number of chunks to process
+
     try:
+        logger.info(f"Starting upload for file: {file.filename}")
+
         # Read file content
         content = await file.read()
+        file_size = len(content)
+
+        logger.info(f"File size: {file_size} bytes")
+
+        # Check file size limit
+        if file_size > MAX_FILE_SIZE:
+            raise HTTPException(
+                status_code=413,
+                detail=f"File too large. Maximum size is {MAX_FILE_SIZE / 1024 / 1024} MB"
+            )
 
         # Parse document based on file type
+        logger.info(f"Parsing document: {file.filename}")
         try:
             text = DocumentParser.parse_document(content, file.filename)
         except ValueError as e:
+            logger.error(f"Document parsing error: {str(e)}")
             raise HTTPException(status_code=400, detail=str(e))
 
+        logger.info(f"Extracted {len(text)} characters from document")
+
         # Split text into chunks
+        logger.info("Splitting text into chunks...")
         chunks = TextChunker.chunk_text(
             text,
             chunk_size=chunk_size,
@@ -152,6 +177,13 @@ async def upload_document(
                 status_code=400,
                 detail="No text content could be extracted from the document"
             )
+
+        # Limit number of chunks
+        if len(chunks) > MAX_CHUNKS:
+            logger.warning(f"Too many chunks ({len(chunks)}), limiting to {MAX_CHUNKS}")
+            chunks = chunks[:MAX_CHUNKS]
+
+        logger.info(f"Created {len(chunks)} chunks")
 
         # Prepare metadata
         file_metadata = {
@@ -168,12 +200,29 @@ async def upload_document(
             except json.JSONDecodeError:
                 raise HTTPException(status_code=400, detail="Invalid JSON in metadata field")
 
-        metadata_str = json.dumps(file_metadata)
+        # Generate embeddings for chunks in smaller batches
+        logger.info("Generating embeddings...")
+        BATCH_SIZE = 20  # Process 20 chunks at a time
+        all_embeddings = []
 
-        # Generate embeddings for all chunks
-        embeddings = embedding_service.get_embeddings_batch(chunks)
+        for i in range(0, len(chunks), BATCH_SIZE):
+            batch = chunks[i:i + BATCH_SIZE]
+            logger.info(f"Processing embedding batch {i//BATCH_SIZE + 1}/{(len(chunks)-1)//BATCH_SIZE + 1}")
+            try:
+                batch_embeddings = embedding_service.get_embeddings_batch(batch)
+                all_embeddings.extend(batch_embeddings)
+            except Exception as e:
+                logger.error(f"Error generating embeddings: {str(e)}")
+                raise HTTPException(
+                    status_code=500,
+                    detail=f"Error generating embeddings: {str(e)}"
+                )
+
+        embeddings = all_embeddings
+        logger.info(f"Generated {len(embeddings)} embeddings")
 
         # Store chunks in database
+        logger.info("Storing chunks in database...")
         document_ids = []
         for i, (chunk, embedding) in enumerate(zip(chunks, embeddings)):
             # Add chunk information to metadata
@@ -190,7 +239,9 @@ async def upload_document(
             db.flush()
             document_ids.append(document.id)
 
+        logger.info(f"Committing {len(document_ids)} documents to database...")
         db.commit()
+        logger.info("Upload complete!")
 
         return FileUploadResponse(
             message="File uploaded and processed successfully",
