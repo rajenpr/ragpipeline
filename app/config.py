@@ -7,7 +7,7 @@ class Settings(BaseSettings):
     """Application settings loaded from environment variables."""
 
     # Database
-    database_url: str = "postgresql://n8n_user:redhat@123@10.121.210.176:5432/rag_system"
+    database_url: str = "postgresql://n8n_user:redhat%40123@10.121.210.176:5432/rag_system"
 
     # OpenAI (via Portkey)
     # Optional: Only needed if NOT using virtual keys or provider routing
