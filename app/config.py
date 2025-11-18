@@ -7,21 +7,23 @@ class Settings(BaseSettings):
     """Application settings loaded from environment variables."""
 
     # Database
-    database_url: str = "postgresql://postgres:postgres@localhost:5432/ragdb"
+    database_url: str = "postgresql://n8n_user:redhat@123@10.121.210.176:5432/rag_system"
 
     # OpenAI (via Portkey)
-    # Optional: Only needed if NOT using virtual keys. If using virtual keys, Portkey manages the provider key.
+    # Optional: Only needed if NOT using virtual keys or provider routing
     openai_api_key: Optional[str] = None
 
     # Portkey Configuration
     portkey_api_key: str
-    portkey_virtual_key: Optional[str] = None  # Required if not providing openai_api_key
+    portkey_virtual_key: Optional[str] = None  # Use either virtual_key OR provider headers
+    portkey_chat_provider: Optional[str] = None  # e.g., "@azure-openai-eus-global/gpt-4.1-dzs"
+    portkey_embedding_provider: Optional[str] = None  # e.g., "@azure-openai-eus-global/text-embedding-3-large-std"
     portkey_base_url: str = "https://api.portkey.ai/v1"
 
     # Models
-    embedding_model: str = "text-embedding-3-small"
-    chat_model: str = "gpt-4-turbo-preview"
-    embedding_dimension: int = 1536
+    embedding_model: str = "text-embedding-3-large-std"
+    chat_model: str = "gpt-4.1-dzs"
+    embedding_dimension: int = 3072  # text-embedding-3-large uses 3072 dimensions
 
     # Application
     app_host: str = "0.0.0.0"
@@ -45,18 +47,36 @@ class Settings(BaseSettings):
 
     @property
     def portkey_chat_headers(self) -> Dict[str, str]:
-        """Headers for Portkey chat completions."""
+        """
+        Headers for Portkey chat completions.
+        Supports both virtual keys and provider routing.
+        """
         headers = {"x-portkey-api-key": self.portkey_api_key}
-        if self.portkey_virtual_key:
+
+        # Use provider routing if specified (takes precedence)
+        if self.portkey_chat_provider:
+            headers["x-portkey-provider"] = self.portkey_chat_provider
+        # Fall back to virtual key if specified
+        elif self.portkey_virtual_key:
             headers["x-portkey-virtual-key"] = self.portkey_virtual_key
+
         return headers
 
     @property
     def portkey_embedding_headers(self) -> Dict[str, str]:
-        """Headers for Portkey embeddings."""
+        """
+        Headers for Portkey embeddings.
+        Supports both virtual keys and provider routing.
+        """
         headers = {"x-portkey-api-key": self.portkey_api_key}
-        if self.portkey_virtual_key:
+
+        # Use provider routing if specified (takes precedence)
+        if self.portkey_embedding_provider:
+            headers["x-portkey-provider"] = self.portkey_embedding_provider
+        # Fall back to virtual key if specified
+        elif self.portkey_virtual_key:
             headers["x-portkey-virtual-key"] = self.portkey_virtual_key
+
         return headers
 
 

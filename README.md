@@ -63,9 +63,12 @@ A production-ready Retrieval-Augmented Generation (RAG) pipeline built with Fast
 ## Prerequisites
 
 - Python 3.10+
-- Docker and Docker Compose
-- OpenAI API account ([Get one here](https://platform.openai.com/))
+- PostgreSQL with PgVector extension (local via Docker or external server)
 - Portkey API account ([Get one here](https://portkey.ai))
+- **One of the following**:
+  - Azure OpenAI access via Portkey (Option A - Recommended)
+  - Portkey Virtual Keys (Option B)
+  - OpenAI API account ([Get one here](https://platform.openai.com/)) (Option C)
 
 ## Setup
 
@@ -83,7 +86,31 @@ cp .env.example .env
 
 Edit `.env` and choose **ONE** of the following authentication setups:
 
-#### Option A: Using Portkey Virtual Keys (Recommended if you don't have OpenAI key)
+#### Option A: Provider Routing with Azure OpenAI (Recommended)
+
+```env
+# Database (update with your PostgreSQL details)
+DATABASE_URL=postgresql://n8n_user:redhat@123@10.121.210.176:5432/rag_system
+
+# Portkey with Azure OpenAI provider routing
+PORTKEY_API_KEY=your_portkey_api_key_here
+PORTKEY_CHAT_PROVIDER=@azure-openai-eus-global/gpt-4.1-dzs
+PORTKEY_EMBEDDING_PROVIDER=@azure-openai-eus-global/text-embedding-3-large-std
+PORTKEY_BASE_URL=https://api.portkey.ai/v1
+
+# Azure OpenAI models
+EMBEDDING_MODEL=text-embedding-3-large-std
+CHAT_MODEL=gpt-4.1-dzs
+EMBEDDING_DIMENSION=3072
+```
+
+**Benefits:**
+- Route to specific Azure OpenAI deployments
+- No need to manage OpenAI API keys in your application
+- Different providers for chat and embeddings
+- Enterprise-grade Azure infrastructure
+
+#### Option B: Using Portkey Virtual Keys
 
 ```env
 # Portkey manages your provider API keys
@@ -94,20 +121,21 @@ PORTKEY_BASE_URL=https://api.portkey.ai/v1
 # Model selection
 EMBEDDING_MODEL=text-embedding-3-small
 CHAT_MODEL=gpt-4-turbo-preview
+EMBEDDING_DIMENSION=1536
 ```
 
 **Setup Steps for Virtual Keys:**
 1. Go to [Portkey Dashboard](https://app.portkey.ai/)
 2. Navigate to "Virtual Keys" section
-3. Create a virtual key linked to OpenAI
+3. Create a virtual key linked to your provider (OpenAI, Azure, etc.)
 4. Copy the virtual key to your `.env` file
 
 **Benefits:**
-- No need for your own OpenAI API key
 - Centralized key management in Portkey
 - Easy provider switching without code changes
+- Works with OpenAI, Azure, Anthropic, and more
 
-#### Option B: Using Your Own OpenAI API Key
+#### Option C: Using Your Own OpenAI API Key
 
 ```env
 # Your OpenAI API key (routed through Portkey for observability)
@@ -118,6 +146,7 @@ PORTKEY_BASE_URL=https://api.portkey.ai/v1
 # Model selection
 EMBEDDING_MODEL=text-embedding-3-small
 CHAT_MODEL=gpt-4-turbo-preview
+EMBEDDING_DIMENSION=1536
 ```
 
 **Benefits:**
@@ -126,12 +155,21 @@ CHAT_MODEL=gpt-4-turbo-preview
 - Full transparency of API usage
 
 **How Portkey Works:**
-- All OpenAI API calls are routed through Portkey's gateway
+- All AI API calls are routed through Portkey's gateway
 - Portkey provides observability, caching, load balancing, and fallbacks
-- Works with either virtual keys or direct API keys
+- Supports provider routing, virtual keys, or direct API keys
+- Works with OpenAI, Azure OpenAI, Anthropic, and other providers
 
-### 3. Start PostgreSQL with PgVector
+### 3. Start PostgreSQL with PgVector (Optional)
 
+**If using external PostgreSQL** (like in Option A above with custom DATABASE_URL):
+- Skip this step if your PostgreSQL server is already running
+- Ensure PgVector extension is installed on your PostgreSQL server:
+  ```sql
+  CREATE EXTENSION IF NOT EXISTS vector;
+  ```
+
+**If using local Docker PostgreSQL**:
 ```bash
 docker-compose up -d
 ```
@@ -388,20 +426,23 @@ All configuration is managed through environment variables in the `.env` file:
 
 | Variable | Description | Default |
 |----------|-------------|---------|
-| `DATABASE_URL` | PostgreSQL connection string | `postgresql://postgres:postgres@localhost:5432/ragdb` |
+| `DATABASE_URL` | PostgreSQL connection string | `postgresql://n8n_user:redhat@123@10.121.210.176:5432/rag_system` |
 | `OPENAI_API_KEY` | Your OpenAI API key | Optional* |
 | `PORTKEY_API_KEY` | Your Portkey API key | Required |
 | `PORTKEY_VIRTUAL_KEY` | Your Portkey virtual key | Optional* |
+| `PORTKEY_CHAT_PROVIDER` | Portkey provider for chat (e.g., Azure OpenAI) | Optional* |
+| `PORTKEY_EMBEDDING_PROVIDER` | Portkey provider for embeddings | Optional* |
 | `PORTKEY_BASE_URL` | Portkey gateway base URL | `https://api.portkey.ai/v1` |
-| `EMBEDDING_MODEL` | Model for embeddings | `text-embedding-3-small` |
-| `CHAT_MODEL` | Model for chat completions | `gpt-4-turbo-preview` |
-| `EMBEDDING_DIMENSION` | Dimension of embedding vectors | `1536` |
+| `EMBEDDING_MODEL` | Model for embeddings | `text-embedding-3-large-std` |
+| `CHAT_MODEL` | Model for chat completions | `gpt-4.1-dzs` |
+| `EMBEDDING_DIMENSION` | Dimension of embedding vectors | `3072` |
 
-**Authentication Requirement:** You must provide either:
-- `OPENAI_API_KEY` (Option B: Direct OpenAI key), OR
-- `PORTKEY_VIRTUAL_KEY` (Option A: Portkey manages keys)
+**Authentication Requirement:** You must provide ONE of:
+- `PORTKEY_CHAT_PROVIDER` + `PORTKEY_EMBEDDING_PROVIDER` (Option A: Provider routing for Azure OpenAI), OR
+- `PORTKEY_VIRTUAL_KEY` (Option B: Virtual keys), OR
+- `OPENAI_API_KEY` (Option C: Direct OpenAI key)
 
-**Note:** This application uses LangChain with OpenAI models routed through Portkey's AI gateway for enhanced observability, caching, and reliability.
+**Note:** This application uses LangChain with AI models (OpenAI/Azure OpenAI) routed through Portkey's gateway for enhanced observability, caching, and reliability.
 
 ## API Documentation
 
