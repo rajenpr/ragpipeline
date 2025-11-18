@@ -81,29 +81,54 @@ cd ragpipeline
 cp .env.example .env
 ```
 
-Edit `.env` and configure the following:
+Edit `.env` and choose **ONE** of the following authentication setups:
+
+#### Option A: Using Portkey Virtual Keys (Recommended if you don't have OpenAI key)
 
 ```env
-# OpenAI API Key (your actual OpenAI key)
-OPENAI_API_KEY=sk-your-openai-api-key-here
-
-# Portkey credentials for AI gateway routing
+# Portkey manages your provider API keys
 PORTKEY_API_KEY=your_portkey_api_key_here
+PORTKEY_VIRTUAL_KEY=your_portkey_virtual_key_here
 PORTKEY_BASE_URL=https://api.portkey.ai/v1
-
-# Optional: Only needed if using Portkey virtual keys
-# PORTKEY_VIRTUAL_KEY=your_portkey_virtual_key_here
 
 # Model selection
 EMBEDDING_MODEL=text-embedding-3-small
 CHAT_MODEL=gpt-4-turbo-preview
 ```
 
+**Setup Steps for Virtual Keys:**
+1. Go to [Portkey Dashboard](https://app.portkey.ai/)
+2. Navigate to "Virtual Keys" section
+3. Create a virtual key linked to OpenAI
+4. Copy the virtual key to your `.env` file
+
+**Benefits:**
+- No need for your own OpenAI API key
+- Centralized key management in Portkey
+- Easy provider switching without code changes
+
+#### Option B: Using Your Own OpenAI API Key
+
+```env
+# Your OpenAI API key (routed through Portkey for observability)
+OPENAI_API_KEY=sk-your-openai-api-key-here
+PORTKEY_API_KEY=your_portkey_api_key_here
+PORTKEY_BASE_URL=https://api.portkey.ai/v1
+
+# Model selection
+EMBEDDING_MODEL=text-embedding-3-small
+CHAT_MODEL=gpt-4-turbo-preview
+```
+
+**Benefits:**
+- Direct control over your OpenAI key
+- Portkey provides observability, caching, and fallbacks
+- Full transparency of API usage
+
 **How Portkey Works:**
 - All OpenAI API calls are routed through Portkey's gateway
 - Portkey provides observability, caching, load balancing, and fallbacks
-- **Virtual Key (Optional)**: Only needed if you've configured virtual keys in your Portkey dashboard for centralized key management
-- If you don't have virtual keys set up, just use your Portkey API key for routing and observability
+- Works with either virtual keys or direct API keys
 
 ### 3. Start PostgreSQL with PgVector
 
@@ -364,13 +389,17 @@ All configuration is managed through environment variables in the `.env` file:
 | Variable | Description | Default |
 |----------|-------------|---------|
 | `DATABASE_URL` | PostgreSQL connection string | `postgresql://postgres:postgres@localhost:5432/ragdb` |
-| `OPENAI_API_KEY` | Your OpenAI API key | Required |
+| `OPENAI_API_KEY` | Your OpenAI API key | Optional* |
 | `PORTKEY_API_KEY` | Your Portkey API key | Required |
-| `PORTKEY_VIRTUAL_KEY` | Your Portkey virtual key (if configured) | Optional |
+| `PORTKEY_VIRTUAL_KEY` | Your Portkey virtual key | Optional* |
 | `PORTKEY_BASE_URL` | Portkey gateway base URL | `https://api.portkey.ai/v1` |
 | `EMBEDDING_MODEL` | Model for embeddings | `text-embedding-3-small` |
 | `CHAT_MODEL` | Model for chat completions | `gpt-4-turbo-preview` |
 | `EMBEDDING_DIMENSION` | Dimension of embedding vectors | `1536` |
+
+**Authentication Requirement:** You must provide either:
+- `OPENAI_API_KEY` (Option B: Direct OpenAI key), OR
+- `PORTKEY_VIRTUAL_KEY` (Option A: Portkey manages keys)
 
 **Note:** This application uses LangChain with OpenAI models routed through Portkey's AI gateway for enhanced observability, caching, and reliability.
 

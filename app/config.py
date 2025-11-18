@@ -10,11 +10,12 @@ class Settings(BaseSettings):
     database_url: str = "postgresql://postgres:postgres@localhost:5432/ragdb"
 
     # OpenAI (via Portkey)
-    openai_api_key: str
+    # Optional: Only needed if NOT using virtual keys. If using virtual keys, Portkey manages the provider key.
+    openai_api_key: Optional[str] = None
 
     # Portkey Configuration
     portkey_api_key: str
-    portkey_virtual_key: Optional[str] = None  # Optional: only needed if using virtual keys
+    portkey_virtual_key: Optional[str] = None  # Required if not providing openai_api_key
     portkey_base_url: str = "https://api.portkey.ai/v1"
 
     # Models
@@ -29,6 +30,18 @@ class Settings(BaseSettings):
     class Config:
         env_file = ".env"
         case_sensitive = False
+
+    @property
+    def effective_openai_api_key(self) -> str:
+        """
+        Get the effective OpenAI API key.
+        When using virtual keys, returns a placeholder since Portkey manages the actual key.
+        """
+        if self.openai_api_key:
+            return self.openai_api_key
+        # When using virtual keys, we need a placeholder key for LangChain initialization
+        # The actual authentication is handled by Portkey via the virtual key
+        return "sk-placeholder-for-virtual-key"
 
     @property
     def portkey_chat_headers(self) -> Dict[str, str]:

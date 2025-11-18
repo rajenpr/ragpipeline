@@ -13,7 +13,7 @@ class EmbeddingService:
         """Initialize LangChain LLM and embeddings with Portkey configuration."""
         # Initialize Chat LLM with Portkey routing
         self.llm = ChatOpenAI(
-            api_key=settings.openai_api_key,
+            api_key=settings.effective_openai_api_key,
             base_url=settings.portkey_base_url,
             default_headers=settings.portkey_chat_headers,
             model=settings.chat_model,
@@ -23,7 +23,7 @@ class EmbeddingService:
 
         # Initialize Embeddings with Portkey routing
         self.embeddings_model = OpenAIEmbeddings(
-            api_key=settings.openai_api_key,
+            api_key=settings.effective_openai_api_key,
             base_url=settings.portkey_base_url,
             default_headers=settings.portkey_embedding_headers,
             model=settings.embedding_model
