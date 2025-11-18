@@ -5,6 +5,8 @@ A production-ready Retrieval-Augmented Generation (RAG) pipeline built with Fast
 ## Features
 
 - **Document Loading**: Store documents with automatic vector embeddings
+- **File Upload Support**: Upload and process .doc, .docx, .pdf, .txt, and .md files
+- **Automatic Text Chunking**: Smart splitting of large documents into manageable chunks
 - **Semantic Search**: Query documents using vector similarity search
 - **AI-Powered Responses**: Generate context-aware responses using LLMs via Portkey
 - **PgVector Integration**: Efficient vector storage and retrieval in PostgreSQL
@@ -153,13 +155,65 @@ Query documents using semantic search and get an AI-generated response.
 }
 ```
 
-### 3. Health Check
+### 3. Upload Document File
+
+**Endpoint**: `POST /upload`
+
+Upload document files (.doc, .docx, .pdf, .txt, .md) and automatically extract text, chunk it, and store embeddings.
+
+**Form Data**:
+- `file`: The document file (required)
+- `chunk_size`: Maximum characters per chunk (optional, default: 1000)
+- `chunk_overlap`: Characters to overlap between chunks (optional, default: 200)
+- `metadata`: Additional metadata as JSON string (optional)
+
+**Example using cURL**:
+```bash
+curl -X POST "http://localhost:8000/upload" \
+  -F "file=@document.pdf" \
+  -F "chunk_size=1000" \
+  -F "chunk_overlap=200" \
+  -F 'metadata={"source": "research", "category": "AI"}'
+```
+
+**Response**:
+```json
+{
+  "message": "File uploaded and processed successfully",
+  "filename": "document.pdf",
+  "file_type": "application/pdf",
+  "chunks_created": 5,
+  "document_ids": [3, 4, 5, 6, 7],
+  "total_characters": 4523
+}
+```
+
+**Supported File Formats**:
+- `.txt` - Plain text files
+- `.md` - Markdown files
+- `.pdf` - PDF documents
+- `.docx` - Microsoft Word (modern format)
+- `.doc` - Microsoft Word (legacy format, requires `pandoc` installed)
+
+**Note for .doc files**: Processing legacy .doc files requires `pandoc` to be installed on your system:
+```bash
+# Ubuntu/Debian
+sudo apt-get install pandoc
+
+# macOS
+brew install pandoc
+
+# Windows
+# Download from https://pandoc.org/installing.html
+```
+
+### 4. Health Check
 
 **Endpoint**: `GET /health`
 
 Check if the service is healthy and database is connected.
 
-### 4. Statistics
+### 5. Statistics
 
 **Endpoint**: `GET /stats`
 
@@ -194,6 +248,14 @@ curl -X POST "http://localhost:8000/query" \
   }'
 ```
 
+**Upload a file**:
+```bash
+curl -X POST "http://localhost:8000/upload" \
+  -F "file=@mydocument.pdf" \
+  -F "chunk_size=1000" \
+  -F 'metadata={"source": "upload", "category": "docs"}'
+```
+
 ### Using Python
 
 ```python
@@ -223,6 +285,17 @@ response = requests.post(
     }
 )
 print(response.json())
+
+# Upload a file
+with open("document.pdf", "rb") as f:
+    files = {"file": ("document.pdf", f, "application/pdf")}
+    data = {
+        "chunk_size": 1000,
+        "chunk_overlap": 200,
+        "metadata": '{"source": "upload", "category": "research"}'
+    }
+    response = requests.post("http://localhost:8000/upload", files=files, data=data)
+    print(response.json())
 ```
 
 ## Project Structure
@@ -233,15 +306,19 @@ ragpipeline/
 │   ├── __init__.py
 │   ├── main.py          # FastAPI application and endpoints
 │   ├── config.py        # Configuration and settings
-│   ├── database.py      # Database setup and session management
+│   ├── database.py      # PostgreSQL and PgVector setup
 │   ├── models.py        # SQLAlchemy models
 │   ├── schemas.py       # Pydantic schemas for request/response
-│   └── services.py      # Embedding and AI services (Portkey)
+│   ├── services.py      # Embedding and AI services (Portkey)
+│   └── document_parser.py  # Document parsing and text chunking utilities
 ├── docker-compose.yml   # PostgreSQL with PgVector
 ├── requirements.txt     # Python dependencies
 ├── .env.example        # Environment variables template
 ├── .gitignore
-└── README.md
+├── README.md
+├── run.sh              # Quick startup script
+├── test_api.py         # API testing script
+└── example_client.py   # Python client library example
 ```
 
 ## Configuration

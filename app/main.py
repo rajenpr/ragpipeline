@@ -1,8 +1,8 @@
-from fastapi import FastAPI, Depends, HTTPException
+from fastapi import FastAPI, Depends, HTTPException, UploadFile, File, Form
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
 from sqlalchemy import text
-from typing import List
+from typing import List, Optional
 import json
 
 from app.database import get_db, init_db
@@ -14,8 +14,10 @@ from app.schemas import (
     QueryInput,
     QueryResponse,
     RetrievedDocument,
+    FileUploadResponse,
 )
 from app.services import get_embedding_service, EmbeddingService
+from app.document_parser import DocumentParser, TextChunker
 
 app = FastAPI(
     title="RAG Pipeline API",
@@ -47,6 +49,7 @@ async def root():
         "message": "RAG Pipeline API",
         "endpoints": {
             "load": "/load - Load documents and store embeddings",
+            "upload": "/upload - Upload and process document files (.doc, .docx, .pdf, .txt)",
             "query": "/query - Query documents and get AI response",
             "docs": "/docs - API documentation",
         },
@@ -100,6 +103,113 @@ async def load_documents(
     except Exception as e:
         db.rollback()
         raise HTTPException(status_code=500, detail=f"Error loading documents: {str(e)}")
+
+
+@app.post("/upload", response_model=FileUploadResponse)
+async def upload_document(
+    file: UploadFile = File(...),
+    chunk_size: int = Form(1000),
+    chunk_overlap: int = Form(200),
+    metadata: Optional[str] = Form(None),
+    db: Session = Depends(get_db),
+    embedding_service: EmbeddingService = Depends(get_embedding_service),
+):
+    """
+    Upload a document file and store it in chunks with embeddings.
+
+    Supported formats: .txt, .doc, .docx, .pdf, .md
+
+    Args:
+        file: The uploaded file
+        chunk_size: Maximum size of each text chunk (default: 1000)
+        chunk_overlap: Overlap between chunks (default: 200)
+        metadata: Optional metadata as JSON string
+        db: Database session
+        embedding_service: Embedding service instance
+
+    Returns:
+        FileUploadResponse with upload status and chunk information
+    """
+    try:
+        # Read file content
+        content = await file.read()
+
+        # Parse document based on file type
+        try:
+            text = DocumentParser.parse_document(content, file.filename)
+        except ValueError as e:
+            raise HTTPException(status_code=400, detail=str(e))
+
+        # Split text into chunks
+        chunks = TextChunker.chunk_text(
+            text,
+            chunk_size=chunk_size,
+            chunk_overlap=chunk_overlap
+        )
+
+        if not chunks:
+            raise HTTPException(
+                status_code=400,
+                detail="No text content could be extracted from the document"
+            )
+
+        # Prepare metadata
+        file_metadata = {
+            "filename": file.filename,
+            "file_type": file.content_type,
+            "total_chunks": len(chunks),
+        }
+
+        # Merge with user-provided metadata
+        if metadata:
+            try:
+                user_metadata = json.loads(metadata)
+                file_metadata.update(user_metadata)
+            except json.JSONDecodeError:
+                raise HTTPException(status_code=400, detail="Invalid JSON in metadata field")
+
+        metadata_str = json.dumps(file_metadata)
+
+        # Generate embeddings for all chunks
+        embeddings = embedding_service.get_embeddings_batch(chunks)
+
+        # Store chunks in database
+        document_ids = []
+        for i, (chunk, embedding) in enumerate(zip(chunks, embeddings)):
+            # Add chunk information to metadata
+            chunk_metadata = file_metadata.copy()
+            chunk_metadata["chunk_index"] = i
+            chunk_metadata["chunk_total"] = len(chunks)
+
+            document = Document(
+                content=chunk,
+                metadata=json.dumps(chunk_metadata),
+                embedding=embedding,
+            )
+            db.add(document)
+            db.flush()
+            document_ids.append(document.id)
+
+        db.commit()
+
+        return FileUploadResponse(
+            message="File uploaded and processed successfully",
+            filename=file.filename,
+            file_type=file.content_type or "unknown",
+            chunks_created=len(chunks),
+            document_ids=document_ids,
+            total_characters=len(text),
+        )
+
+    except HTTPException:
+        db.rollback()
+        raise
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(
+            status_code=500,
+            detail=f"Error processing file: {str(e)}"
+        )
 
 
 @app.post("/query", response_model=QueryResponse)

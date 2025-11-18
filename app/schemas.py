@@ -59,3 +59,14 @@ class QueryResponse(BaseModel):
     query: str
     retrieved_documents: List[RetrievedDocument]
     generated_response: Optional[str] = None
+
+
+class FileUploadResponse(BaseModel):
+    """Schema for file upload response."""
+
+    message: str
+    filename: str
+    file_type: str
+    chunks_created: int
+    document_ids: List[int]
+    total_characters: int
