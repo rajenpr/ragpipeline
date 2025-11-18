@@ -1,6 +1,6 @@
 from pydantic_settings import BaseSettings
 from functools import lru_cache
-from typing import Dict
+from typing import Dict, Optional
 
 
 class Settings(BaseSettings):
@@ -14,7 +14,7 @@ class Settings(BaseSettings):
 
     # Portkey Configuration
     portkey_api_key: str
-    portkey_virtual_key: str
+    portkey_virtual_key: Optional[str] = None  # Optional: only needed if using virtual keys
     portkey_base_url: str = "https://api.portkey.ai/v1"
 
     # Models
@@ -33,18 +33,18 @@ class Settings(BaseSettings):
     @property
     def portkey_chat_headers(self) -> Dict[str, str]:
         """Headers for Portkey chat completions."""
-        return {
-            "x-portkey-api-key": self.portkey_api_key,
-            "x-portkey-virtual-key": self.portkey_virtual_key,
-        }
+        headers = {"x-portkey-api-key": self.portkey_api_key}
+        if self.portkey_virtual_key:
+            headers["x-portkey-virtual-key"] = self.portkey_virtual_key
+        return headers
 
     @property
     def portkey_embedding_headers(self) -> Dict[str, str]:
         """Headers for Portkey embeddings."""
-        return {
-            "x-portkey-api-key": self.portkey_api_key,
-            "x-portkey-virtual-key": self.portkey_virtual_key,
-        }
+        headers = {"x-portkey-api-key": self.portkey_api_key}
+        if self.portkey_virtual_key:
+            headers["x-portkey-virtual-key"] = self.portkey_virtual_key
+        return headers
 
 
 @lru_cache()

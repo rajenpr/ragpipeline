@@ -89,8 +89,10 @@ OPENAI_API_KEY=sk-your-openai-api-key-here
 
 # Portkey credentials for AI gateway routing
 PORTKEY_API_KEY=your_portkey_api_key_here
-PORTKEY_VIRTUAL_KEY=your_portkey_virtual_key_here
 PORTKEY_BASE_URL=https://api.portkey.ai/v1
+
+# Optional: Only needed if using Portkey virtual keys
+# PORTKEY_VIRTUAL_KEY=your_portkey_virtual_key_here
 
 # Model selection
 EMBEDDING_MODEL=text-embedding-3-small
@@ -100,7 +102,8 @@ CHAT_MODEL=gpt-4-turbo-preview
 **How Portkey Works:**
 - All OpenAI API calls are routed through Portkey's gateway
 - Portkey provides observability, caching, load balancing, and fallbacks
-- Your OpenAI API key is sent via Portkey with the virtual key configuration
+- **Virtual Key (Optional)**: Only needed if you've configured virtual keys in your Portkey dashboard for centralized key management
+- If you don't have virtual keys set up, just use your Portkey API key for routing and observability
 
 ### 3. Start PostgreSQL with PgVector
 
@@ -363,7 +366,7 @@ All configuration is managed through environment variables in the `.env` file:
 | `DATABASE_URL` | PostgreSQL connection string | `postgresql://postgres:postgres@localhost:5432/ragdb` |
 | `OPENAI_API_KEY` | Your OpenAI API key | Required |
 | `PORTKEY_API_KEY` | Your Portkey API key | Required |
-| `PORTKEY_VIRTUAL_KEY` | Your Portkey virtual key | Required |
+| `PORTKEY_VIRTUAL_KEY` | Your Portkey virtual key (if configured) | Optional |
 | `PORTKEY_BASE_URL` | Portkey gateway base URL | `https://api.portkey.ai/v1` |
 | `EMBEDDING_MODEL` | Model for embeddings | `text-embedding-3-small` |
 | `CHAT_MODEL` | Model for chat completions | `gpt-4-turbo-preview` |
