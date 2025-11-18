@@ -21,21 +21,39 @@ A production-ready Retrieval-Augmented Generation (RAG) pipeline built with Fast
 └──────┬──────┘
        │
        v
-┌─────────────────────────────────┐
-│      FastAPI Application        │
-│  ┌──────────┐    ┌───────────┐ │
-│  │  /load   │    │  /query   │ │
-│  └──────────┘    └───────────┘ │
-└────────┬──────────────┬─────────┘
+┌──────────────────────────────────────┐
+│      FastAPI Application             │
+│  ┌──────────┐    ┌───────────┐      │
+│  │  /load   │    │  /query   │      │
+│  │  /upload │    │           │      │
+│  └──────────┘    └───────────┘      │
+└────────┬──────────────┬──────────────┘
          │              │
          v              v
-    ┌────────────────────────┐
-    │   Portkey AI Service   │
-    │  - Embeddings          │
-    │  - Chat Completions    │
-    └────────────────────────┘
-         │
-         v
+    ┌────────────────────────────┐
+    │   LangChain Integration    │
+    │  - ChatOpenAI              │
+    │  - OpenAIEmbeddings        │
+    └────────┬───────────────────┘
+             │
+             v
+    ┌────────────────────────────┐
+    │   Portkey AI Gateway       │
+    │  - Routes to OpenAI        │
+    │  - Observability           │
+    │  - Caching & Fallbacks     │
+    └────────┬───────────────────┘
+             │
+             v
+    ┌────────────────────────────┐
+    │   OpenAI API               │
+    │  - text-embedding-3-small  │
+    │  - gpt-4-turbo-preview     │
+    └────────────────────────────┘
+
+         (Embeddings stored in)
+             │
+             v
     ┌──────────────────┐
     │   PostgreSQL     │
     │   + PgVector     │
@@ -46,6 +64,7 @@ A production-ready Retrieval-Augmented Generation (RAG) pipeline built with Fast
 
 - Python 3.10+
 - Docker and Docker Compose
+- OpenAI API account ([Get one here](https://platform.openai.com/))
 - Portkey API account ([Get one here](https://portkey.ai))
 
 ## Setup
@@ -62,12 +81,26 @@ cd ragpipeline
 cp .env.example .env
 ```
 
-Edit `.env` and add your Portkey credentials:
+Edit `.env` and configure the following:
 
 ```env
+# OpenAI API Key (your actual OpenAI key)
+OPENAI_API_KEY=sk-your-openai-api-key-here
+
+# Portkey credentials for AI gateway routing
 PORTKEY_API_KEY=your_portkey_api_key_here
-PORTKEY_VIRTUAL_KEY=your_virtual_key_here
+PORTKEY_VIRTUAL_KEY=your_portkey_virtual_key_here
+PORTKEY_BASE_URL=https://api.portkey.ai/v1
+
+# Model selection
+EMBEDDING_MODEL=text-embedding-3-small
+CHAT_MODEL=gpt-4-turbo-preview
 ```
+
+**How Portkey Works:**
+- All OpenAI API calls are routed through Portkey's gateway
+- Portkey provides observability, caching, load balancing, and fallbacks
+- Your OpenAI API key is sent via Portkey with the virtual key configuration
 
 ### 3. Start PostgreSQL with PgVector
 
@@ -328,11 +361,15 @@ All configuration is managed through environment variables in the `.env` file:
 | Variable | Description | Default |
 |----------|-------------|---------|
 | `DATABASE_URL` | PostgreSQL connection string | `postgresql://postgres:postgres@localhost:5432/ragdb` |
+| `OPENAI_API_KEY` | Your OpenAI API key | Required |
 | `PORTKEY_API_KEY` | Your Portkey API key | Required |
 | `PORTKEY_VIRTUAL_KEY` | Your Portkey virtual key | Required |
+| `PORTKEY_BASE_URL` | Portkey gateway base URL | `https://api.portkey.ai/v1` |
 | `EMBEDDING_MODEL` | Model for embeddings | `text-embedding-3-small` |
 | `CHAT_MODEL` | Model for chat completions | `gpt-4-turbo-preview` |
 | `EMBEDDING_DIMENSION` | Dimension of embedding vectors | `1536` |
+
+**Note:** This application uses LangChain with OpenAI models routed through Portkey's AI gateway for enhanced observability, caching, and reliability.
 
 ## API Documentation
 

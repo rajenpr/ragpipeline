@@ -1,20 +1,34 @@
 from typing import List
-from portkey_ai import Portkey
+from langchain_openai import ChatOpenAI, OpenAIEmbeddings
+from langchain_core.prompts import ChatPromptTemplate
 from app.config import get_settings
-import numpy as np
 
 settings = get_settings()
 
 
 class EmbeddingService:
-    """Service for generating embeddings and chat completions using Portkey."""
+    """Service for generating embeddings and chat completions using LangChain with Portkey routing."""
 
     def __init__(self):
-        """Initialize Portkey client."""
-        self.client = Portkey(
-            api_key=settings.portkey_api_key,
-            virtual_key=settings.portkey_virtual_key
+        """Initialize LangChain LLM and embeddings with Portkey configuration."""
+        # Initialize Chat LLM with Portkey routing
+        self.llm = ChatOpenAI(
+            api_key=settings.openai_api_key,
+            base_url=settings.portkey_base_url,
+            default_headers=settings.portkey_chat_headers,
+            model=settings.chat_model,
+            temperature=0.7,
+            max_tokens=500
         )
+
+        # Initialize Embeddings with Portkey routing
+        self.embeddings_model = OpenAIEmbeddings(
+            api_key=settings.openai_api_key,
+            base_url=settings.portkey_base_url,
+            default_headers=settings.portkey_embedding_headers,
+            model=settings.embedding_model
+        )
+
         self.embedding_model = settings.embedding_model
         self.chat_model = settings.chat_model
 
@@ -28,11 +42,7 @@ class EmbeddingService:
         Returns:
             List of floats representing the embedding vector
         """
-        response = self.client.embeddings.create(
-            input=text,
-            model=self.embedding_model
-        )
-        return response.data[0].embedding
+        return self.embeddings_model.embed_query(text)
 
     def get_embeddings_batch(self, texts: List[str]) -> List[List[float]]:
         """
@@ -44,11 +54,7 @@ class EmbeddingService:
         Returns:
             List of embedding vectors
         """
-        response = self.client.embeddings.create(
-            input=texts,
-            model=self.embedding_model
-        )
-        return [item.embedding for item in response.data]
+        return self.embeddings_model.embed_documents(texts)
 
     def generate_response(self, query: str, context: str) -> str:
         """
@@ -61,28 +67,26 @@ class EmbeddingService:
         Returns:
             Generated response string
         """
-        system_prompt = """You are a helpful assistant that answers questions based on the provided context.
+        # Create chat prompt template
+        prompt_template = ChatPromptTemplate.from_messages([
+            ("system", """You are a helpful assistant that answers questions based on the provided context.
 Use the context to answer the question accurately. If the context doesn't contain enough information
-to answer the question, say so clearly."""
-
-        user_prompt = f"""Context:
+to answer the question, say so clearly."""),
+            ("human", """Context:
 {context}
 
 Question: {query}
 
-Answer:"""
+Answer:""")
+        ])
 
-        response = self.client.chat.completions.create(
-            model=self.chat_model,
-            messages=[
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": user_prompt}
-            ],
-            temperature=0.7,
-            max_tokens=500
-        )
+        # Format the prompt with context and query
+        prompt = prompt_template.format_messages(context=context, query=query)
 
-        return response.choices[0].message.content
+        # Invoke the LLM
+        response = self.llm.invoke(prompt)
+
+        return response.content
 
 
 # Singleton instance
