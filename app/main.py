@@ -85,7 +85,7 @@ async def load_documents(
         for doc_input, embedding in zip(batch.documents, embeddings):
             document = Document(
                 content=doc_input.content,
-                metadata=doc_input.metadata,
+                doc_metadata=doc_input.metadata,
                 embedding=embedding,
             )
             db.add(document)
@@ -183,7 +183,7 @@ async def upload_document(
 
             document = Document(
                 content=chunk,
-                metadata=json.dumps(chunk_metadata),
+                doc_metadata=json.dumps(chunk_metadata),
                 embedding=embedding,
             )
             db.add(document)
@@ -240,7 +240,7 @@ async def query_documents(
             SELECT
                 id,
                 content,
-                metadata,
+                doc_metadata,
                 1 - (embedding <=> :query_embedding) as similarity
             FROM documents
             ORDER BY embedding <=> :query_embedding
@@ -263,7 +263,7 @@ async def query_documents(
                 RetrievedDocument(
                     id=row.id,
                     content=row.content,
-                    metadata=row.metadata,
+                    metadata=row.doc_metadata,
                     similarity_score=float(row.similarity),
                 )
             )
